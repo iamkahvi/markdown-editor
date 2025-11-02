@@ -1,63 +1,50 @@
-'use client';
-import dynamic from 'next/dynamic';
-import React, {useRef, useEffect, useState} from 'react';
-import type { ContextStore } from '@uiw/react-md-editor';
+"use client";
+import dynamic from "next/dynamic";
+import React, { useRef, useEffect, useState } from "react";
+import type { ContextStore } from "@uiw/react-md-editor";
+import diff_match_patch from "diff-match-patch";
+import Editor from "./editor";
 
-const MDEditor = dynamic(() => import('@uiw/react-md-editor'), { ssr: false });
-type OnChange = (value?: string, event?: React.ChangeEvent<HTMLTextAreaElement>, state?: ContextStore) => void;
+type OnChange = (
+  value?: string,
+  event?: React.ChangeEvent<HTMLTextAreaElement>,
+  state?: ContextStore
+) => void;
 
-enum Status {
-  Success = "success",
-  Error = "error",
+type Patch = [-1 | 0 | 1, string];
+
+interface Message {
+  patches: Patch[];
 }
 
-enum Type {
-  First = "first",
-  Normal = "normal",
+interface MyResponse {
+  status: "OK" | "ERROR";
+  doc?: string;
 }
-
-type ClientMessage = {
-  status: Status;
-  type: Type;
-  data: string;
-};
-
-const SECOND = 1_000;
 
 const SERVER_URL = "ws://localhost:8000/write";
 
-const makeMessage = (data: string): ClientMessage => {
-  return {
-    status: Status.Success,
-    type: Type.Normal,
-    data,
-  };
+const FIRST_MESSAGE: Message = {
+  patches: [],
 };
 
 export default function Home() {
-  const ws = useRef(null);
+  const diffMatchPatch = new diff_match_patch();
+  const ws = useRef<WebSocket | null>(null);
   const [value, setValue] = useState("");
+  const [syncedValue, setSyncedValue] = useState("");
   const [isOpen, setIsOpen] = useState(false);
-  var timerId;
-
-  const fetchInitial = () => {
-    if (!ws.current) return;
-
-    const message: ClientMessage = {
-      status: Status.Success,
-      type: Type.First,
-      data: "",
-    };
-
-    ws.current.send(JSON.stringify(message));
-  };
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>();
 
   useEffect(() => {
     ws.current = new WebSocket(SERVER_URL);
 
     ws.current.onopen = function (evt) {
       setIsOpen(true);
-      fetchInitial();
+      if (ws.current) {
+        // it would be nice to enforce the api by altering the send method type
+        ws.current.send(JSON.stringify(FIRST_MESSAGE));
+      }
       console.log("OPEN");
     };
 
@@ -68,16 +55,21 @@ export default function Home() {
     };
 
     ws.current.onmessage = function (evt) {
-      const message = JSON.parse(evt.data);
+      const message: MyResponse = JSON.parse(evt.data);
 
-      if (message["type"] == "first") {
-        setValue(message["data"]);
+      if (message.status === "OK" && message.doc) {
+        setValue(message.doc);
+      }
+
+      if (message.status === "ERROR") {
+        console.log("ERROR from server");
+        // stop showing editor
       }
     };
 
-    ws.current.onerror = function (evt) {
+    ws.current.onerror = function (evt: Event) {
       setIsOpen(false);
-      console.log("ERROR: " + evt.data);
+      console.log("ERROR: " + (evt as ErrorEvent).message);
     };
 
     const wsCurr = ws.current;
@@ -87,29 +79,35 @@ export default function Home() {
     };
   }, [setIsOpen]);
 
-  const onChange = (val) => {
+  const onChange: OnChange = (val) => {
     if (!ws.current) return;
 
-    clearTimeout(timerId);
+    clearTimeout(timeoutRef.current);
 
-    const messageData: string = val;
+    const messageData: string = val || "";
 
     if (messageData.length > 536870888) {
       window.alert("uh oh, we're writing too much!");
     }
 
-    timerId = setTimeout(() => {
-			console.log("sending: ", messageData);
-      ws.current.send(JSON.stringify(makeMessage(messageData)));
-			setValue(val);
-    }, 2);
+    timeoutRef.current = setTimeout(() => {
+      setSyncedValue(messageData);
+      if (ws.current) {
+        const patches = diffMatchPatch.diff_main(syncedValue, messageData);
+        const message: Message = { patches };
+        console.log("sending: ", JSON.stringify(message));
+        ws.current.send(JSON.stringify(message));
+      }
+    }, 500);
+
+    setValue(messageData);
   };
 
   if (!isOpen) return <div>loading</div>;
 
   return (
     <main className=" w-auto mx-auto p-4">
-      <MDEditor style={{ width: '100%' }} value={value} onChange={onChange} />
+      <Editor value={value} onChange={onChange} />
     </main>
   );
 }

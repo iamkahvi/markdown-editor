@@ -4,3 +4,45 @@ Markdown editor to use with Websocket server [here](https://github.com/iamkahvi/
 
 ## Development
 `npm run start` serves the website on http://localhost:3000.
+
+## api design
+
+```ts
+type Patch = [-1 | 0 | 1, string];
+
+interface Message {
+  patches: Patch[];
+}
+
+interface MyResponse {
+  status: "OK" | "ERROR";
+  doc?: string;
+}
+
+// ex of the first message
+const m: Message = {
+    patches: []
+}
+
+// ex of the first response
+const r: MyResponse = {
+    status: "OK",
+    doc: "hello world"
+}
+
+// ex of normal message
+const m2: Message = {
+    patches: [
+        [0, "hello world"],
+        [1,"!"]
+    ]
+}
+
+// ex of normal response
+const r2: MyResponse = {
+    status: "OK"
+}
+```
+
+
+## control flow
