@@ -45,4 +45,16 @@ const r2: MyResponse = {
 ```
 
 
-## control flow
+## server side logic
+
+```ts
+const fullString = patches.reduce((acc: string, [op, text]: Patch) => {
+  if (op === 1) {
+    return acc + text;
+  } else if (op === 0) {
+    return acc + text;
+  } else {
+    return acc;
+  }
+}, "");
+```

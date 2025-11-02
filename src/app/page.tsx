@@ -57,7 +57,9 @@ export default function Home() {
     ws.current.onmessage = function (evt) {
       const message: MyResponse = JSON.parse(evt.data);
 
+      console.log("RECEIVED: " + JSON.stringify(message));
       if (message.status === "OK" && message.doc) {
+        console.log("OK from server, doc: ", message.doc);
         setValue(message.doc);
       }
 
@@ -95,10 +97,10 @@ export default function Home() {
       if (ws.current) {
         const patches = diffMatchPatch.diff_main(syncedValue, messageData);
         const message: Message = { patches };
-        console.log("sending: ", JSON.stringify(message));
+        console.log("sending: ", message);
         ws.current.send(JSON.stringify(message));
       }
-    }, 500);
+    }, 50);
 
     setValue(messageData);
   };
