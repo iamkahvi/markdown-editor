@@ -1,5 +1,4 @@
 "use client";
-import dynamic from "next/dynamic";
 import React, { useRef, useEffect, useState } from "react";
 import type { ContextStore } from "@uiw/react-md-editor";
 import diff_match_patch from "diff-match-patch";
@@ -73,6 +72,7 @@ export default function Home() {
       if (message.status === "OK" && message.doc) {
         console.log("OK from server, doc: ", message.doc);
         setValue(message.doc);
+        setSyncedValue(message.doc);
       }
 
       if (message.status === "ERROR") {
