@@ -11,10 +11,21 @@ type OnChange = (
   state?: ContextStore
 ) => void;
 
+type Diff = [number, string];
+
+type PatchObj = {
+  diffs: Diff[];
+  start1: number | null;
+  start2: number | null;
+  length1: number;
+  length2: number;
+};
+
 type Patch = [-1 | 0 | 1, string];
 
 interface Message {
   patches: Patch[];
+  patchObjs: PatchObj[];
 }
 
 interface MyResponse {
@@ -26,6 +37,7 @@ const SERVER_URL = "ws://localhost:8000/write";
 
 const FIRST_MESSAGE: Message = {
   patches: [],
+  patchObjs: [],
 };
 
 export default function Home() {
@@ -96,7 +108,19 @@ export default function Home() {
       setSyncedValue(messageData);
       if (ws.current) {
         const patches = diffMatchPatch.diff_main(syncedValue, messageData);
-        const message: Message = { patches };
+        const patchObjs: PatchObj[] = diffMatchPatch
+          .patch_make(syncedValue, messageData)
+          .map((patch: any) => {
+            return {
+              diffs: patch.diffs as Diff[],
+              start1: patch.start1,
+              start2: patch.start2,
+              length1: patch.length1,
+              length2: patch.length2,
+            };
+          });
+        // TODO: i should be sending patches to the server, not the whole document
+        const message: Message = { patches, patchObjs };
         console.log("sending: ", message);
         ws.current.send(JSON.stringify(message));
       }
